@@ -1,0 +1,13 @@
+@extends('layout')
+@section('title', $register ? __('Create your Gather account') : __('Welcome back — Gather'))
+@section('content')
+<div class="auth-page"><div class="auth-story">@include('partials.brand')<div><span class="eyebrow">{{ __('A LITTLE CLOSER') }}</span><h1>{{ __('Good conversations') }}<br>{{ __('start here.') }}</h1><p>{{ __('A space for your people, your ideas,') }}<br>{{ __('and everything that comes next.') }}</p><div class="abstract-art"><div class="art-ring"></div><div class="art-circle"></div><div class="art-square"></div><span class="art-spark">✳</span></div></div><span class="auth-footer">{{ __('Made for connection. Hosted by you.') }}</span></div>
+<main class="auth-form"><a href="{{ route('home') }}" class="back-link">{{ __('← Back to Gather') }}</a><div class="auth-box"><span class="eyebrow">{{ $register ? __('LET’S GET TOGETHER') : __('YOUR WORKSPACE AWAITS') }}</span><h2>{{ $register ? __('Make room for more.') : __('Welcome back.') }}</h2><p>{{ $register ? __('Create an account to host your first meeting.') : __('Sign in and pick up the conversation.') }}</p>@include('partials.alerts')
+<form method="post" action="{{ $register ? route('register') : route('login') }}">@csrf
+@if($register)<label for="name">{{ __('Your name') }}</label><input id="name" name="name" value="{{ old('name') }}" required maxlength="60" autocomplete="name" placeholder="{{ __('Alex Morgan') }}">@endif
+<label for="email">{{ __('Email address') }}</label><input type="email" id="email" name="email" value="{{ old('email') }}" required autocomplete="email" placeholder="you@company.com">
+<label for="password">{{ __('Password') }}</label><input type="password" id="password" name="password" required minlength="{{ $register ? 10 : 1 }}" autocomplete="{{ $register ? 'new-password' : 'current-password' }}" placeholder="{{ $register ? __('At least 10 characters') : __('Enter your password') }}">
+@if($register)<label for="password_confirmation">{{ __('Confirm password') }}</label><input type="password" id="password_confirmation" name="password_confirmation" required autocomplete="new-password">@else<label class="checkbox"><input type="checkbox" name="remember" value="1">{{ __('Keep me signed in') }}</label>@endif
+<button class="button primary full" type="submit">{{ $register ? __('Create account') : __('Sign in') }}<x-icon name="arrow"/></button></form>
+<p class="auth-switch">{{ $register ? __('Already have an account?') : __('New to Gather?') }} <a href="{{ $register ? route('login') : route('register') }}">{{ $register ? __('Sign in') : __('Create an account') }}</a></p></div></main></div>
+@endsection

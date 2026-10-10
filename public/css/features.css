@@ -1,0 +1,421 @@
+.language-switch {
+    position: fixed;
+    inset-block-start: 22px;
+    inset-inline-end: 22px;
+    z-index: 30;
+}
+.language-switch select {
+    padding: 6px 10px;
+    font-size: 11px;
+    width: 88px;
+    min-height: 32px;
+    border-radius: 20px;
+    background: #fff;
+    color: #234034;
+    border-color: #d5ddce;
+}
+.topbar-right,
+.landing-nav nav {
+    margin-inline-end: 105px;
+}
+.room-header > button {
+    margin-inline-end: 106px;
+}
+.room-page .language-switch select {
+    background: #2d4031;
+    border-color: #4b6041;
+    color: #dfeacb;
+}
+.connection-warning {
+    color: #ffc769;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 27px;
+    height: 27px;
+    font-size: 20px;
+    border-radius: 50%;
+    background: #ffd48d18;
+    cursor: help;
+}
+.room-header {
+    gap: 20px;
+}
+.room-title {
+    min-width: 0;
+}
+.speaking {
+    box-shadow: 0 0 0 2px #ddef9b !important;
+    border-color: #ddef9b !important;
+}
+.control-button.speaking:before {
+    content: "";
+    position: absolute;
+    inset: -5px;
+    border: 1px solid #c9e288;
+    border-radius: 15px;
+    animation: mic-pulse 1s ease-out infinite;
+    pointer-events: none;
+}
+.speaking-bars {
+    position: absolute;
+    top: 14px;
+    inset-inline-start: 14px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    height: 22px;
+    background: #223629b0;
+    padding: 4px 8px;
+    border-radius: 5px;
+}
+.speaking-bars i {
+    width: 3px;
+    height: 9px;
+    background: #ddef9b;
+    border-radius: 3px;
+    animation: voice-bars 0.7s infinite alternate;
+}
+.speaking-bars i:nth-child(2) {
+    animation-delay: -0.2s;
+    height: 14px;
+}
+.speaking-bars i:nth-child(3) {
+    animation-delay: -0.4s;
+}
+.host-muted-notice {
+    padding: 8px 12px;
+    background: #513f2a;
+    color: #f6d1a0;
+    font-size: 11px;
+    border: 1px solid #715b3c;
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+.reaction-control {
+    position: relative;
+}
+.reaction-picker {
+    position: absolute;
+    inset-block-end: 72px;
+    inset-inline-start: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 4px;
+    background: #f7f9f0;
+    border: 1px solid #dce5d1;
+    padding: 8px;
+    border-radius: 30px;
+    box-shadow: 0 8px 25px #0004;
+    z-index: 20;
+    white-space: nowrap;
+}
+.reaction-picker button {
+    border: 0;
+    background: transparent;
+    padding: 7px;
+    font-size: 23px;
+    border-radius: 50%;
+    line-height: 1;
+}
+.reaction-picker button:hover {
+    background: #dfeabf;
+}
+.reaction-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+    overflow: hidden;
+}
+.call-main {
+    position: relative;
+}
+.floating-reaction {
+    position: absolute;
+    inset-inline-end: 24px;
+    bottom: 12%;
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    animation: reaction-float 4s ease-out forwards;
+}
+.floating-reaction > span {
+    font-size: 46px;
+}
+.floating-reaction > small {
+    font-size: 11px;
+    background: #193022d9;
+    color: white;
+    padding: 3px 9px;
+    border-radius: 8px;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.floating-reaction:nth-child(even) {
+    inset-inline-end: 95px;
+    animation-delay: 0.1s;
+}
+.room-page #toggle-mic:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+.room-page #host-controls .person-action {
+    margin-inline-start: 5px;
+}
+.room-header .brand {
+    white-space: nowrap;
+}
+@keyframes voice-bars {
+    to {
+        transform: scaleY(0.35);
+    }
+}
+@keyframes mic-pulse {
+    to {
+        transform: scale(1.13);
+        opacity: 0;
+    }
+}
+@keyframes reaction-float {
+    0% {
+        transform: translateY(30px) scale(0.6);
+        opacity: 0;
+    }
+    10% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+    80% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-160px);
+    }
+}
+html[dir="rtl"] body {
+    font-family: Tahoma, "Segoe UI", Arial, sans-serif;
+    letter-spacing: 0;
+}
+html[dir="rtl"] h1,
+html[dir="rtl"] h2,
+html[dir="rtl"] h3,
+html[dir="rtl"] .eyebrow {
+    letter-spacing: 0;
+}
+html[dir="rtl"] .sidebar {
+    left: auto;
+    right: 0;
+    border-right: 0;
+    border-left: 1px solid var(--line);
+}
+html[dir="rtl"] .main-area {
+    margin-left: 0;
+    margin-right: 236px;
+}
+html[dir="rtl"] .sidebar .brand {
+    margin-left: 0;
+    margin-right: 6px;
+}
+html[dir="rtl"] .host-label {
+    margin-right: 0;
+    margin-left: auto;
+}
+html[dir="rtl"] .profile .icon-button {
+    margin-left: 0;
+}
+html[dir="rtl"] .input-with-icon > .icon {
+    left: auto;
+    right: 14px;
+}
+html[dir="rtl"]
+    .input-with-icon
+    input:not([type="hidden"]):not([type="checkbox"]) {
+    padding-left: 13px;
+    padding-right: 41px;
+}
+html[dir="rtl"] .panel-tabs .icon-button {
+    margin-left: 0;
+    margin-right: auto;
+}
+html[dir="rtl"] .room-panel {
+    border-left: 0;
+    border-right: 1px solid #374838;
+}
+html[dir="rtl"] .chat-form textarea {
+    padding: 10px 12px 10px 37px;
+}
+html[dir="rtl"] .chat-form > .icon-button {
+    right: auto;
+    left: 22px;
+}
+html[dir="rtl"] .tile-name {
+    left: auto;
+    right: 13px;
+}
+html[dir="rtl"] .tile-indicators {
+    right: auto;
+    left: 15px;
+}
+html[dir="rtl"] .tile-sharing {
+    left: auto;
+    right: 12px;
+}
+html[dir="rtl"] .peer-status {
+    right: auto;
+    left: 13px;
+}
+html[dir="rtl"] .reaction-picker {
+    transform: translateX(50%);
+}
+html[dir="rtl"] .hero-copy h1 {
+    font-size: 64px;
+    line-height: 1.35;
+}
+html[dir="rtl"] .hero-copy h1 em {
+    font-family: inherit;
+}
+html[dir="rtl"] .closing-cta .button {
+    margin-left: 0;
+    margin-right: auto;
+}
+code,
+time,
+#elapsed,
+.room-title > span,
+#copy-code {
+    unicode-bidi: plaintext;
+}
+.brand {
+    direction: ltr;
+}
+.messages,
+.meeting-card h3,
+.person-details,
+.room-title h1 {
+    unicode-bidi: plaintext;
+}
+@media (max-width: 1150px) {
+    html[dir="rtl"] .main-area {
+        margin-right: 206px;
+    }
+}
+@media (max-width: 850px) {
+    html[dir="rtl"] .main-area {
+        margin-right: 175px;
+    }
+    .room-header .brand > span {
+        display: none;
+    }
+    .landing-nav nav {
+        margin-inline-end: 98px;
+    }
+    .topbar-right {
+        margin-inline-end: 0;
+    }
+}
+@media (max-width: 800px) {
+    html[dir="rtl"] .room-panel {
+        right: auto;
+        left: 0;
+    }
+    .room-header > button {
+        margin-inline-end: 95px;
+    }
+}
+@media (max-width: 600px) {
+    .language-switch {
+        inset-block-start: 20px;
+        inset-inline-end: 14px;
+    }
+    .language-switch select {
+        width: 76px;
+        padding: 5px 8px;
+        font-size: 10px;
+    }
+    .sidebar .side-nav {
+        margin-inline-end: 85px;
+    }
+    .landing-nav nav {
+        margin-inline-end: 84px;
+    }
+    .landing-nav nav > a:nth-child(2) {
+        display: none;
+    }
+    .landing-nav nav > .button {
+        font-size: 9px;
+        max-width: 130px;
+    }
+    .room-header > button {
+        margin-inline-end: 85px;
+    }
+    .room-header {
+        gap: 10px;
+        padding-inline: 12px;
+    }
+    .room-title h1 {
+        font-size: 12px;
+    }
+    .room-title > span {
+        font-size: 8px;
+    }
+    .connection-warning {
+        min-width: 18px;
+        font-size: 16px;
+    }
+    .topbar {
+        padding-inline-end: 100px;
+    }
+    html[dir="rtl"] .main-area {
+        margin-right: 0;
+    }
+    html[dir="rtl"] .sidebar .brand {
+        margin-right: 0;
+    }
+    html[dir="rtl"] .hero-copy h1 {
+        font-size: 49px;
+    }
+    .room-page .call-buttons {
+        gap: 6px;
+    }
+    .room-page .toolbar-item > span {
+        font-size: 7px;
+    }
+    .room-page .call-buttons .control-button {
+        width: 33px;
+        height: 35px;
+    }
+    .room-page .call-buttons .hangup {
+        width: 36px;
+    }
+    .room-page .toolbar-divider {
+        display: none;
+    }
+    .reaction-picker {
+        inset-inline-start: 20%;
+        padding: 5px;
+    }
+    .reaction-picker button {
+        padding: 6px;
+        font-size: 21px;
+    }
+    .person-row {
+        padding: 10px 14px;
+        gap: 6px;
+    }
+}
+.control-button {
+    position: relative;
+}
+@media (prefers-reduced-motion: reduce) {
+    .speaking-bars i,
+    .control-button.speaking:before {
+        animation: none;
+    }
+    .floating-reaction {
+        animation: none;
+        opacity: 1;
+    }
+}

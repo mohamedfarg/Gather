@@ -1,0 +1,9 @@
+{
+  "name": "gather-meetings",
+  "private": true,
+  "scripts": {
+    "test:browser": "node tests/browser/meeting.cjs",
+    "check": "node --check public/js/app.js && node --check public/js/room.js"
+  },
+  "devDependencies": { "playwright": "^1.58.0" }
+}
