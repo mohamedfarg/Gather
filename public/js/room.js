@@ -17,7 +17,10 @@ $(function () {
         stopped = false;
     let cursor = 0,
         messageCursor = 0,
-        pollTimer,
+        pollBusy = false,
+        pollAgain = false,
+        heartbeatTimer,
+        pusher = null,
         elapsedTimer,
         startedAt,
         recorder = null,
@@ -166,8 +169,9 @@ $(function () {
                     : Gather.t("Turn microphone on"),
             )
             .attr("aria-pressed", String(audioOn));
-        $("#toggle-mic").prop("disabled", !!me?.audio_locked);
-        $("#muted-by-host").prop("hidden", !me?.audio_locked);
+        const hostAudioLock = !!me?.audio_locked && !me?.is_host;
+        $("#toggle-mic").prop("disabled", hostAudioLock);
+        $("#muted-by-host").prop("hidden", !hostAudioLock);
         $("#preview-camera, #toggle-camera")
             .toggleClass("disabled-state", !videoOn)
             .attr(
@@ -231,7 +235,7 @@ $(function () {
                     ),
                 );
             if (kind === "audio") {
-                if (me?.audio_locked) {
+                if (me?.audio_locked && !me?.is_host) {
                     Gather.toast(
                         t(
                             "The host has muted your microphone. Raise your hand to request permission to speak.",
@@ -568,7 +572,11 @@ $(function () {
     }
     async function poll() {
         if (stopped || !joined) return;
-        let delay = 1200;
+        if (pollBusy) {
+            pollAgain = true;
+            return;
+        }
+        pollBusy = true;
         try {
             const data = await api("/poll", "GET", {
                 cursor,
@@ -579,7 +587,7 @@ $(function () {
             const wasWaiting = me.status === "waiting";
             const wasAudioLocked = !!me.audio_locked;
             me = data.me;
-            if (me.audio_locked) {
+            if (me.audio_locked && !me.is_host) {
                 audioOn = false;
                 if (microphone) microphone.enabled = false;
             }
@@ -675,9 +683,8 @@ $(function () {
                 return;
             }
             failures++;
-            delay = Math.min(10000, 2000 * failures);
             $("#room-status").text(
-                Gather.t("Connection interrupted. Retrying…"),
+                Gather.t("Connection interrupted. Waiting for realtime updates…"),
             );
             if (failures === 3)
                 Gather.toast(
@@ -686,12 +693,48 @@ $(function () {
                     ),
                 );
         } finally {
-            if (!stopped) pollTimer = setTimeout(poll, delay);
+            pollBusy = false;
+            if (!stopped && pollAgain) {
+                pollAgain = false;
+                queueMicrotask(poll);
+            }
         }
+    }
+    function connectRealtime() {
+        if (!window.Pusher || !cfg.pusherKey || !cfg.pusherCluster) {
+            $("#room-status").text(Gather.t("Realtime service is not configured"));
+            Gather.toast(Gather.t("Add Pusher app credentials to enable live meeting updates."));
+            return false;
+        }
+        pusher = new Pusher(cfg.pusherKey, {
+            cluster: cfg.pusherCluster,
+            channelAuthorization: {
+                endpoint: "/broadcasting/auth",
+                transport: "ajax",
+                headers: { "X-CSRF-TOKEN": cfg.csrf },
+            },
+        });
+        const channel = pusher.subscribe("private-meeting." + cfg.code);
+        channel.bind("room.changed", poll);
+        pusher.connection.bind("connected", () => {
+            if (joined) poll();
+        });
+        pusher.connection.bind("unavailable", () => {
+            $("#room-status").text(Gather.t("Realtime connection unavailable"));
+        });
+        channel.bind("pusher:subscription_error", () => {
+            $("#room-status").text(Gather.t("Could not join realtime room"));
+        });
+        return true;
     }
     $("#enter-form").on("submit", async function (event) {
         event.preventDefault();
         if (joined) return;
+        if (!window.Pusher || !cfg.pusherKey || !cfg.pusherCluster) {
+            $("#room-status").text(Gather.t("Realtime service is not configured"));
+            Gather.toast(Gather.t("Add Pusher app credentials to enable live meeting updates."));
+            return;
+        }
         $("#join-button").prop("disabled", true);
         $("#lobby-error").prop("hidden", true);
         try {
@@ -714,6 +757,15 @@ $(function () {
             await resumeAudio();
             iceServers = data.iceServers;
             joined = true;
+            if (!connectRealtime()) {
+                joined = false;
+                return;
+            }
+            heartbeatTimer = setInterval(() => {
+                if (joined && !stopped) api("/heartbeat", "POST", {}).catch((error) => {
+                    if ([403, 410].includes(error.status)) exit(Gather.error(error), false);
+                });
+            }, 25000);
             $("#local-name").text(me.name);
             $("#local-initial").text(initial(me.name));
             localPreview();
@@ -971,7 +1023,8 @@ $(function () {
     ) {
         if (stopped) return;
         stopped = true;
-        clearTimeout(pollTimer);
+        clearInterval(heartbeatTimer);
+        pusher?.disconnect();
         clearInterval(elapsedTimer);
         clearInterval(meterTimer);
         clearInterval(qualityTimer);

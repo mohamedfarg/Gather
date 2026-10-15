@@ -5,5 +5,10 @@
     "test:browser": "node tests/browser/meeting.cjs",
     "check": "node --check public/js/app.js && node --check public/js/room.js"
   },
-  "devDependencies": { "playwright": "^1.58.0" }
+  "devDependencies": {
+    "playwright": "^1.58.0"
+  },
+  "dependencies": {
+    "pusher-js": "^8.6.0"
+  }
 }

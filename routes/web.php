@@ -33,6 +33,7 @@ Route::get('/m/{meeting:code}', [RoomController::class, 'show'])->name('room');
 Route::prefix('/m/{meeting:code}')->middleware('throttle:600,1,room')->group(function () {
     Route::post('/enter', [RoomController::class, 'enter']);
     Route::get('/poll', [RoomController::class, 'poll']);
+    Route::post('/heartbeat', [RoomController::class, 'heartbeat']);
     Route::post('/signal', [RoomController::class, 'signal']);
     Route::post('/chat', [RoomController::class, 'chat']);
     Route::post('/reaction', [RoomController::class, 'reaction'])->middleware('throttle:30,1,reactions');

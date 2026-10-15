@@ -3,12 +3,20 @@
 namespace App\Http\Controllers;
 
 use App\Models\Meeting;
+use App\Events\RoomChanged;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class RoomController extends Controller
 {
+    private function notifyRoom(Meeting $meeting): void
+    {
+        if (config('broadcasting.connections.pusher.key') && config('broadcasting.connections.pusher.secret') && config('broadcasting.connections.pusher.app_id')) {
+            event(new RoomChanged($meeting->code));
+        }
+    }
+
     private function participant(Request $r, Meeting $m, bool $admitted = true)
     {
         $p = DB::table('participants')->where('meeting_id', $m->id)->where('id', $r->session()->get('rooms.'.$m->id))->first();
@@ -55,6 +63,7 @@ class RoomController extends Controller
             return DB::table('participants')->where('id', $id)->first();
         });
         $ice = [];
+        $this->notifyRoom($meeting);
         if (config('meeting.stun_url')) {
             $ice[] = ['urls' => config('meeting.stun_url')];
         }
@@ -84,6 +93,14 @@ class RoomController extends Controller
         return response()->json(['me' => $me, 'participants' => $participants, 'locked' => $meeting->locked, 'moderated' => (bool) $meeting->moderated, 'events' => $events->where('target', $me->id)->values(), 'cursor' => $events->last()?->id ?? $r->integer('cursor'), 'messages' => $messages, 'activity' => $activity]);
     }
 
+    public function heartbeat(Request $r, Meeting $meeting)
+    {
+        $me = $this->participant($r, $meeting, false);
+        DB::table('participants')->where('id', $me->id)->update(['last_seen' => now()]);
+
+        return response()->noContent();
+    }
+
     public function signal(Request $r, Meeting $meeting)
     {
         $me = $this->participant($r, $meeting);
@@ -91,6 +108,7 @@ class RoomController extends Controller
         abort_if(strlen(json_encode($data['payload'])) > 65536, 422, __('Signal is too large.'));
         abort_unless($this->peers($meeting)->where('status', 'admitted')->where('id', $data['target'])->where('id', '!=', $me->id)->exists(), 422, __('Participant unavailable.'));
         DB::table('meeting_events')->insert(['meeting_id' => $meeting->id, 'sender' => $me->id, 'target' => $data['target'], 'type' => $data['type'], 'payload' => json_encode($data['payload']), 'created_at' => now()]);
+        $this->notifyRoom($meeting);
 
         return response()->noContent();
     }
@@ -100,6 +118,7 @@ class RoomController extends Controller
         $me = $this->participant($r, $meeting);
         $data = $r->validate(['body' => 'required|string|max:2000']);
         DB::table('messages')->insert(['meeting_id' => $meeting->id, 'participant_id' => $me->id, 'name' => $me->name, 'body' => trim($data['body']), 'created_at' => now()]);
+        $this->notifyRoom($meeting);
 
         return response()->noContent();
     }
@@ -108,8 +127,9 @@ class RoomController extends Controller
     {
         $me = $this->participant($r, $meeting);
         $data = $r->validate(['audio' => 'sometimes|boolean', 'video' => 'sometimes|boolean', 'hand' => 'sometimes|boolean', 'sharing' => 'sometimes|boolean']);
-        abort_if($me->audio_locked && ! empty($data['audio']), 403, __('The host has muted your microphone. Raise your hand to request permission to speak.'));
+        abort_if(! $me->is_host && $me->audio_locked && ! empty($data['audio']), 403, __('The host has muted your microphone. Raise your hand to request permission to speak.'));
         DB::table('participants')->where('id', $me->id)->update($data + ['updated_at' => now()]);
+        $this->notifyRoom($meeting);
 
         return response()->noContent();
     }
@@ -117,7 +137,7 @@ class RoomController extends Controller
     public function leave(Request $r, Meeting $meeting)
     {
         DB::table('participants')->where('meeting_id', $meeting->id)->where('id', $r->session()->get('rooms.'.$meeting->id))->where('status', '!=', 'removed')->update(['status' => 'left']);
-
+        $this->notifyRoom($meeting);
         return response()->noContent();
     }
 
@@ -152,6 +172,7 @@ class RoomController extends Controller
             });
         }
 
+        $this->notifyRoom($meeting);
         return response()->noContent();
     }
 
@@ -160,6 +181,7 @@ class RoomController extends Controller
         $me = $this->participant($r, $meeting);
         $data = $r->validate(['emoji' => 'required|in:👍,👏,❤️,😂,🎉,🤔']);
         DB::table('room_activity')->insert(['meeting_id' => $meeting->id, 'participant_id' => $me->id, 'name' => $me->name, 'emoji' => $data['emoji'], 'created_at' => now()]);
+        $this->notifyRoom($meeting);
 
         return response()->noContent();
     }
