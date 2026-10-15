@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Meeting;
 use App\Events\RoomChanged;
+use App\Services\RoomRealtime;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -13,7 +14,11 @@ class RoomController extends Controller
     private function notifyRoom(Meeting $meeting): void
     {
         if (config('broadcasting.connections.pusher.key') && config('broadcasting.connections.pusher.secret') && config('broadcasting.connections.pusher.app_id')) {
-            event(new RoomChanged($meeting->code));
+            try {
+                event(new RoomChanged($meeting->code));
+            } catch (\Throwable $error) {
+                report($error);
+            }
         }
     }
 
@@ -30,7 +35,26 @@ class RoomController extends Controller
 
     private function peers(Meeting $m)
     {
-        return DB::table('participants')->where('meeting_id', $m->id)->where('last_seen', '>', now()->subSeconds(45))->whereIn('status', ['waiting', 'admitted']);
+        $query = DB::table('participants')->where('meeting_id', $m->id)->whereIn('status', ['waiting', 'admitted']);
+
+        return app(RoomRealtime::class)->enabled()
+            ? $query
+            : $query->where('last_seen', '>', now()->subSeconds(45));
+    }
+
+    private function livePeers(Meeting $meeting)
+    {
+        $query = $this->peers($meeting);
+        $realtime = app(RoomRealtime::class);
+        if ($realtime->enabled()) {
+            $ids = $realtime->participantIds($meeting);
+            if ($ids !== null) {
+                $query->where(fn ($q) => $q->whereIn('id', $ids)
+                    ->orWhere('created_at', '>', now()->subSeconds(20)));
+            }
+        }
+
+        return $query;
     }
 
     public function show(Meeting $meeting)
@@ -48,7 +72,7 @@ class RoomController extends Controller
             $old = DB::table('participants')->where('meeting_id', $m->id)->where('id', $r->session()->get('rooms.'.$m->id))->first();
             abort_if($old?->status === 'removed', 403, __('The host removed you from this meeting.'));
             abort_if($m->locked && ! $host, 423, __('The host has locked this meeting.'));
-            $others = $this->peers($m)->where('id', '!=', $old?->id ?? '');
+            $others = $this->livePeers($m)->where('id', '!=', $old?->id ?? '');
             abort_if((clone $others)->count() >= config('meeting.capacity') || (! $host && (clone $others)->where('is_host', false)->count() >= config('meeting.capacity') - 1), 409, __('This room is full (8 participants, including the host).'));
             if ($old) {
                 DB::table('participants')->where('id', $old->id)->update(['status' => 'left']);
@@ -93,12 +117,22 @@ class RoomController extends Controller
         return response()->json(['me' => $me, 'participants' => $participants, 'locked' => $meeting->locked, 'moderated' => (bool) $meeting->moderated, 'events' => $events->where('target', $me->id)->values(), 'cursor' => $events->last()?->id ?? $r->integer('cursor'), 'messages' => $messages, 'activity' => $activity]);
     }
 
-    public function heartbeat(Request $r, Meeting $meeting)
+    public function realtimeAuth(Request $r, Meeting $meeting)
     {
         $me = $this->participant($r, $meeting, false);
-        DB::table('participants')->where('id', $me->id)->update(['last_seen' => now()]);
+        $data = $r->validate([
+            'socket_id' => ['required', 'string', 'regex:/^\d+\.\d+$/'],
+            'channel_name' => 'required|string|max:200',
+        ]);
+        abort_unless($data['channel_name'] === 'presence-meeting.'.$meeting->code, 403);
+        $realtime = app(RoomRealtime::class);
+        abort_unless($realtime->enabled(), 503, __('Realtime service is not configured'));
 
-        return response()->noContent();
+        // Guest membership is the meeting participant stored in the session,
+        // not a logged-in User (which Laravel's default presence auth requires).
+        return response()->json(json_decode($realtime->client()->authorizePresenceChannel(
+            $data['channel_name'], $data['socket_id'], $me->id,
+        ), true));
     }
 
     public function signal(Request $r, Meeting $meeting)
@@ -128,6 +162,9 @@ class RoomController extends Controller
         $me = $this->participant($r, $meeting);
         $data = $r->validate(['audio' => 'sometimes|boolean', 'video' => 'sometimes|boolean', 'hand' => 'sometimes|boolean', 'sharing' => 'sometimes|boolean']);
         abort_if(! $me->is_host && $me->audio_locked && ! empty($data['audio']), 403, __('The host has muted your microphone. Raise your hand to request permission to speak.'));
+        if ($me->is_host) {
+            $data['audio_locked'] = false;
+        }
         DB::table('participants')->where('id', $me->id)->update($data + ['updated_at' => now()]);
         $this->notifyRoom($meeting);
 

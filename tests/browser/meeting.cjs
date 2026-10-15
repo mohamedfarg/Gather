@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 
-(async () => {
+module.exports = (async () => {
     const root = path.resolve(__dirname, "../..");
     const artifacts = path.join(root, "storage/app/qa");
     fs.mkdirSync(artifacts, { recursive: true });
@@ -28,6 +28,9 @@ const { execFileSync } = require("node:child_process");
         viewport: { width: 1440, height: 1000 },
         permissions: ["camera", "microphone"],
     });
+    if (process.env.PUSHER_TEST_FIXTURE === "1") {
+        for (const context of [hostContext, guestContext]) await require("./pusher-fixture.cjs").install(context);
+    }
     for (const context of [hostContext, guestContext])
         await context.addInitScript(() => {
             window.__testPeers = [];
@@ -353,6 +356,7 @@ const { execFileSync } = require("node:child_process");
                 "Meeting locked",
         );
         const thirdContext = await browser.newContext();
+        if (process.env.PUSHER_TEST_FIXTURE === "1") await require("./pusher-fixture.cjs").install(thirdContext);
         const third = await thirdContext.newPage();
         await third.goto(room);
         await third.locator("#display-name").fill("Late guest");
@@ -485,5 +489,5 @@ const { execFileSync } = require("node:child_process");
     }
 })().catch((error) => {
     console.error(error);
-    process.exit(1);
+    process.exitCode = 1;
 });

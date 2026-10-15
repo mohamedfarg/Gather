@@ -3,6 +3,7 @@ $(function () {
     const cfg = window.ROOM,
         api = (path, method, data) => Gather.api(cfg.base + path, method, data);
     const peers = new Map();
+    const deviceBusy = { audio: false, video: false };
     let me = null,
         iceServers = [],
         members = [],
@@ -19,7 +20,7 @@ $(function () {
         messageCursor = 0,
         pollBusy = false,
         pollAgain = false,
-        heartbeatTimer,
+        presentIds = null,
         pusher = null,
         elapsedTimer,
         startedAt,
@@ -149,13 +150,19 @@ $(function () {
     const activeVideo = () => screen?.getVideoTracks()[0] || camera;
     function localPreview() {
         const track = activeVideo();
-        const stream = new MediaStream(track ? [track] : []);
         $("#preview-video, #local-video").each(function () {
-            if (
-                this.srcObject?.getVideoTracks()[0]?.id !== track?.id ||
-                !this.srcObject
-            )
-                this.srcObject = stream;
+            // Empty MediaStreams can keep Chromium's document load pending,
+            // which also delays browser permission prompts.
+            if (!track || track.readyState === "ended") {
+                if (this.srcObject) {
+                    this.pause();
+                    this.srcObject = null;
+                    this.removeAttribute("src");
+                    this.load();
+                }
+            } else if (this.srcObject?.getVideoTracks()[0]?.id !== track.id) {
+                this.srcObject = new MediaStream([track]);
+            }
         });
         $(".preview-placeholder").prop("hidden", videoOn);
         $("#local-tile .tile-avatar").prop("hidden", videoOn || sharing);
@@ -170,9 +177,13 @@ $(function () {
             )
             .attr("aria-pressed", String(audioOn));
         const hostAudioLock = !!me?.audio_locked && !me?.is_host;
-        $("#toggle-mic").prop("disabled", hostAudioLock);
+        $("#preview-mic, #toggle-mic")
+            .prop("disabled", deviceBusy.audio || hostAudioLock)
+            .attr("aria-busy", String(deviceBusy.audio));
         $("#muted-by-host").prop("hidden", !hostAudioLock);
         $("#preview-camera, #toggle-camera")
+            .prop("disabled", deviceBusy.video)
+            .attr("aria-busy", String(deviceBusy.video))
             .toggleClass("disabled-state", !videoOn)
             .attr(
                 "aria-label",
@@ -226,7 +237,9 @@ $(function () {
         );
     }
     async function toggleDevice(kind, button) {
-        $(button).prop("disabled", true);
+        if (stopped || deviceBusy[kind]) return;
+        deviceBusy[kind] = true;
+        localPreview();
         try {
             if (!navigator.mediaDevices?.getUserMedia)
                 throw new Error(
@@ -245,16 +258,14 @@ $(function () {
                 }
                 if (!microphone || microphone.readyState === "ended")
                     microphone = (
-                        await navigator.mediaDevices.getUserMedia({
-                            audio: true,
-                        })
+                        await requestDevice("audio", { audio: true })
                     ).getAudioTracks()[0];
                 audioOn = !audioOn;
                 microphone.enabled = audioOn;
             } else {
                 if (!camera || camera.readyState === "ended")
                     camera = (
-                        await navigator.mediaDevices.getUserMedia({
+                        await requestDevice("video", {
                             video: {
                                 width: { ideal: 960 },
                                 height: { ideal: 540 },
@@ -264,14 +275,48 @@ $(function () {
                 videoOn = !videoOn;
                 camera.enabled = videoOn;
             }
-            await resumeAudio();
+            // AudioContext drives playback/meters; it must not block the mic.
+            resumeAudio().catch(() => {});
             await syncTracks();
         } catch (error) {
             Gather.toast(mediaError(error));
             localPreview();
         } finally {
-            $(button).prop("disabled", false);
+            deviceBusy[kind] = false;
+            localPreview();
         }
+    }
+    function requestDevice(kind, constraints) {
+        return new Promise((resolve, reject) => {
+            let settled = false;
+            const timer = setTimeout(() => {
+                settled = true;
+                reject(new Error(t(kind === "audio"
+                    ? "Allow microphone access in your browser, then try Unmute again."
+                    : "Allow camera access in your browser, then try Start video again.")));
+            }, 15000);
+            Promise.resolve()
+                .then(() => navigator.mediaDevices.getUserMedia(constraints))
+                .then((stream) => {
+                    if (settled || stopped) {
+                        stream.getTracks().forEach((track) => track.stop());
+                        if (!settled) {
+                            clearTimeout(timer);
+                            settled = true;
+                            reject(new Error(t("Meeting left")));
+                        }
+                        return;
+                    }
+                    settled = true;
+                    clearTimeout(timer);
+                    resolve(stream);
+                }, (error) => {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(timer);
+                    reject(error);
+                });
+        });
     }
     $("#preview-mic, #toggle-mic").on("click", function () {
         toggleDevice("audio", this);
@@ -605,7 +650,9 @@ $(function () {
                 $("#local-hand").prop("hidden", true);
             }
             localPreview();
-            members = data.participants;
+            members = data.participants.filter(
+                (participant) => participant.id === me.id || presentIds?.has(participant.id),
+            );
             if (me.status === "waiting") {
                 $("#room-status").text(Gather.t("Waiting for the host"));
                 return;
@@ -708,19 +755,35 @@ $(function () {
         }
         pusher = new Pusher(cfg.pusherKey, {
             cluster: cfg.pusherCluster,
+            forceTLS: true,
+            enabledTransports: ["ws", "wss"],
+            enableStats: false,
             channelAuthorization: {
-                endpoint: "/broadcasting/auth",
+                endpoint: cfg.base + "/realtime-auth",
                 transport: "ajax",
                 headers: { "X-CSRF-TOKEN": cfg.csrf },
             },
         });
-        const channel = pusher.subscribe("private-meeting." + cfg.code);
+        const channel = pusher.subscribe("presence-meeting." + cfg.code);
         channel.bind("room.changed", poll);
-        pusher.connection.bind("connected", () => {
-            if (joined) poll();
+        channel.bind("pusher:subscription_succeeded", (presence) => {
+            presentIds = new Set();
+            presence.each((member) => presentIds.add(member.id));
+            poll();
+        });
+        channel.bind("pusher:member_added", (member) => {
+            presentIds?.add(member.id);
+            poll();
+        });
+        channel.bind("pusher:member_removed", (member) => {
+            presentIds?.delete(member.id);
+            poll();
         });
         pusher.connection.bind("unavailable", () => {
             $("#room-status").text(Gather.t("Realtime connection unavailable"));
+        });
+        pusher.connection.bind("error", () => {
+            $("#room-status").text(Gather.t("Realtime connection failed"));
         });
         channel.bind("pusher:subscription_error", () => {
             $("#room-status").text(Gather.t("Could not join realtime room"));
@@ -750,7 +813,7 @@ $(function () {
                 video: videoOn,
             });
             me = data.participant;
-            if (me.audio_locked) {
+            if (me.audio_locked && !me.is_host) {
                 audioOn = false;
                 if (microphone) microphone.enabled = false;
             }
@@ -761,11 +824,6 @@ $(function () {
                 joined = false;
                 return;
             }
-            heartbeatTimer = setInterval(() => {
-                if (joined && !stopped) api("/heartbeat", "POST", {}).catch((error) => {
-                    if ([403, 410].includes(error.status)) exit(Gather.error(error), false);
-                });
-            }, 25000);
             $("#local-name").text(me.name);
             $("#local-initial").text(initial(me.name));
             localPreview();
@@ -1023,7 +1081,6 @@ $(function () {
     ) {
         if (stopped) return;
         stopped = true;
-        clearInterval(heartbeatTimer);
         pusher?.disconnect();
         clearInterval(elapsedTimer);
         clearInterval(meterTimer);

@@ -312,5 +312,7 @@
     "WAITING TO JOIN · ": "بانتظار الانضمام · ",
     "possible.": "أمامنا.",
     "Pagination": "التنقل بين الصفحات",
-    "Reconnecting…": "جارٍ إعادة الاتصال…"
+    "Reconnecting…": "جارٍ إعادة الاتصال…",
+    "Allow microphone access in your browser, then try Unmute again.": "اسمح للمتصفح بالوصول إلى الميكروفون، ثم حاول تشغيله مجددًا.",
+    "Allow camera access in your browser, then try Start video again.": "اسمح للمتصفح بالوصول إلى الكاميرا، ثم حاول تشغيلها مجددًا."
 }

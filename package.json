@@ -3,6 +3,8 @@
   "private": true,
   "scripts": {
     "test:browser": "node tests/browser/meeting.cjs",
+    "test:host-unmute": "node tests/browser/host-unmute.cjs",
+    "test:local": "node tests/browser/run-local.cjs",
     "check": "node --check public/js/app.js && node --check public/js/room.js"
   },
   "devDependencies": {

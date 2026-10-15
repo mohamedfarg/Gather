@@ -1,6 +1,6 @@
 # Gather — a little closer
 
-Gather is a working small-group meeting application using **Laravel 12 / PHP 8.2+, jQuery 3.7.1, plain CSS, SQLite, and native WebRTC**. No external meeting SDK, public STUN server, CDN, external API, analytics service, or hosted identity provider is used at runtime. Composer and optional npm dependencies are downloaded during development/setup; application traffic stays between your browser, your Laravel server, peers, and any TURN server you operate.
+Gather is a working small-group meeting application using **Laravel 12 / PHP 8.2+, jQuery 3.7.1, plain CSS, SQLite, native WebRTC, and Pusher Channels**. It uses no external meeting SDK, public STUN server, CDN, analytics service, or hosted identity provider. Pusher provides room update events; meeting audio and video remain peer-to-peer. Composer and optional npm dependencies are downloaded during development/setup.
 
 ## Included
 
@@ -48,7 +48,7 @@ On Linux, use `cp .env.example .env` and `touch database/database.sqlite`. Do no
 
 Blade renders pages. Local jQuery handles interactions and JSON requests. Laravel session authentication, CSRF verification, validation, throttling, and meeting-scoped participant checks protect the room routes. An authenticated owner is the host; guest membership is scoped to a UUID stored in the session.
 
-WebRTC carries media directly between browsers. Pusher Channels delivers private, meeting-scoped change notifications; the browser fetches updates only on connection/reconnection and when a room event arrives. A lightweight heartbeat runs every 25 seconds to expire disconnected participants; the room does not continuously poll. Laravel stores offer/answer/ICE signals in `meeting_events`, delivered only to the intended admitted participant. Guests awaiting admission receive no chat or signaling. Chat is persisted in `messages` and rendered as escaped text. Stale participants disappear after 45 seconds without a heartbeat, with cleanup after five minutes.
+WebRTC carries media directly between browsers. Pusher presence channels deliver meeting-scoped changes and membership events. The browser fetches an initial snapshot and refreshes it on socket events, with no recurring HTTP poll or heartbeat. Pusher's own keepalive stays on the WebSocket; HTTP streaming/polling fallbacks are disabled. Each participant, including an unauthenticated guest, authorizes the channel using their meeting-session UUID. The scheduler checks Pusher presence to retire disconnected members without expiring people in idle meetings. Laravel stores offer/answer/ICE signals in `meeting_events`, delivered only to the intended admitted participant. Guests awaiting admission receive no chat or signaling. Chat is persisted in `messages` and rendered as escaped text.
 
 Pusher app credentials are required for realtime updates. Set `BROADCAST_CONNECTION=pusher` and `PUSHER_APP_ID`, `PUSHER_APP_KEY`, `PUSHER_APP_SECRET`, and `PUSHER_APP_CLUSTER` in `.env`. The Pusher browser library is served locally from `public/vendor/`.
 
@@ -108,7 +108,7 @@ Set write permissions for `storage/` and `bootstrap/cache/`, use database creden
 
 ## Testing
 
-Verified in this workspace: **20 PHP tests / 445 assertions passed**, JavaScript syntax checks passed, and the browser integration suite passed with **zero external runtime HTTP requests**. The browser suite verified two-way media, a three-person mesh, joining without devices and enabling them afterward, waiting-room admission, chat escaping, hand raising, speaking animation, reactions, enforced host muting, live Arabic switching without disconnecting, simulated connection degradation/recovery, screen-track replacement, lock/removal/end, and responsive layouts. The downloaded recording was decoded and checked for audible remote voice while the host microphone was muted. Arabic landing/login/register layouts also passed at desktop/mobile widths. Screenshots are in `storage/app/qa/`.
+Verified in this workspace: **26 PHP tests / 466 assertions passed**, JavaScript syntax checks passed, the complete three-person meeting browser suite passed in Chrome, and the device-permission regression suite passed in Chrome and Brave. Browser checks cover finished document loading with devices off, host unmute, rejected/ignored permissions, stopping late permission results, and no recurring HTTP requests while idle. The tests use generated cameras/microphones and a local Pusher protocol fixture: the real Pusher.js library connects, Laravel signs subscriptions and broadcasts, and the fixture checks the signatures and delivers socket events. This verifies the application without requiring hosted Pusher credentials or touching the user's database; it does not validate your hosted Pusher account settings or physical microphone.
 
 ```powershell
 php artisan test
@@ -127,6 +127,8 @@ npx playwright install chromium
 npm run test:browser
 node tests/browser/locales.cjs
 ```
+
+For isolated Pusher integration tests, use `npm run test:local`. This creates a disposable SQLite database, runs Laravel on port 8011, and runs the local Pusher protocol fixture. Set `E2E_MEDIA_ONLY=1` to run only the loading/permission/unmute tests, and `E2E_PORT` to choose another unused test port. Use `CHROME_PATH` for an installed Chrome or Brave executable. A blank camera preview has no attached MediaStream; ignored device permissions time out after 15 seconds and leave the control available for another attempt.
 
 To use an installed Chrome instead of downloading Chromium, set `CHROME_PATH` to its executable. `TEST_URL` defaults to http://127.0.0.1:8000. The test creates three isolated browser contexts and uses fake browser cameras/microphones. Screen-track replacement and local recording use a generated canvas display stream; manually verify real OS screen selection and physical microphones on your target browsers. The test removes only its generated account and meetings after finishing. It writes screenshots and a local recording into `storage/app/qa/`.
 

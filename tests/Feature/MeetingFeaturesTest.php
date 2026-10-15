@@ -49,6 +49,23 @@ class MeetingFeaturesTest extends TestCase
         $this->withSession(['rooms' => [$m->id => $guest]])->patchJson('/m/'.$m->code.'/state', ['audio' => true])->assertNoContent();
     }
 
+    public function test_host_can_unmute_even_if_a_stale_host_lock_exists(): void
+    {
+        [$meeting, $user, $host] = $this->room();
+        DB::table('participants')->where('id', $host)->update(['audio_locked' => true, 'audio' => false]);
+
+        $this->actingAs($user)
+            ->withSession(['rooms' => [$meeting->id => $host]])
+            ->patchJson('/m/'.$meeting->code.'/state', ['audio' => true])
+            ->assertNoContent();
+
+        $this->assertDatabaseHas('participants', [
+            'id' => $host,
+            'audio' => true,
+            'audio_locked' => false,
+        ]);
+    }
+
     public function test_guest_reactions_are_validated_and_waiting_guests_do_not_receive_them(): void
     {
         [$m,$user,$host,$guest] = $this->room();

@@ -312,5 +312,7 @@
     "Recording": "Recording",
     "possible.": "possible.",
     "Pagination": "Pagination",
-    "Reconnecting…": "Reconnecting…"
+    "Reconnecting…": "Reconnecting…",
+    "Allow microphone access in your browser, then try Unmute again.": "Allow microphone access in your browser, then try Unmute again.",
+    "Allow camera access in your browser, then try Start video again.": "Allow camera access in your browser, then try Start video again."
 }
